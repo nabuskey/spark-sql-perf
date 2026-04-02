@@ -254,9 +254,17 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
       if (!tableExists || overwrite) {
         println(s"Creating external table $name in database $databaseName using data stored in $location.")
         log.info(s"Creating external table $name in database $databaseName using data stored in $location.")
-        sqlContext.createExternalTable(qualifiedTableName, location, format)
+        if (format == "iceberg") {
+          // Iceberg tables must be registered via Spark SQL — the deprecated
+          // createExternalTable() API only works for Hive-compatible formats.
+          sqlContext.sql(s"CREATE TABLE IF NOT EXISTS $qualifiedTableName USING iceberg LOCATION '$location'")
+        } else {
+          sqlContext.createExternalTable(qualifiedTableName, location, format)
+        }
       }
-      if (partitionColumns.nonEmpty && discoverPartitions) {
+      // ALTER TABLE RECOVER PARTITIONS is Hive-only DDL and fails on Iceberg tables.
+      // Iceberg tracks partitions natively in its metadata — no recovery step needed.
+      if (partitionColumns.nonEmpty && discoverPartitions && format != "iceberg") {
         println(s"Discovering partitions for table $name.")
         log.info(s"Discovering partitions for table $name.")
         sqlContext.sql(s"ALTER TABLE $databaseName.$name RECOVER PARTITIONS")
@@ -269,11 +277,13 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
       sqlContext.read.format(format).load(location).createOrReplaceTempView(name)
     }
 
-    def analyzeTable(databaseName: String, analyzeColumns: Boolean = false): Unit = {
+    def analyzeTable(databaseName: String, format: String = "parquet", analyzeColumns: Boolean = false): Unit = {
       println(s"Analyzing table $name.")
       log.info(s"Analyzing table $name.")
       sqlContext.sql(s"ANALYZE TABLE $databaseName.$name COMPUTE STATISTICS")
-      if (analyzeColumns) {
+      // COMPUTE STATISTICS FOR COLUMNS is not supported on Iceberg tables.
+      // Iceberg exposes column-level stats via its own metadata (not Hive ANALYZE).
+      if (analyzeColumns && format != "iceberg") {
         val allColumns = fields.map(_.name).mkString(", ")
         println(s"Analyzing table $name columns $allColumns.")
         log.info(s"Analyzing table $name columns $allColumns.")
@@ -342,14 +352,14 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
     }
   }
 
-  def analyzeTables(databaseName: String, analyzeColumns: Boolean = false, tableFilter: String = ""): Unit = {
+  def analyzeTables(databaseName: String, format: String = "parquet", analyzeColumns: Boolean = false, tableFilter: String = ""): Unit = {
     val filtered = if (tableFilter.isEmpty) {
       tables
     } else {
       tables.filter(_.name == tableFilter)
     }
     filtered.foreach { table =>
-      table.analyzeTable(databaseName, analyzeColumns)
+      table.analyzeTable(databaseName, format, analyzeColumns)
     }
   }
 
