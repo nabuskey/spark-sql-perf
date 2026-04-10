@@ -152,10 +152,17 @@ class Query(
         breakDown = breakdownResults)
     } catch {
       case e: Exception =>
+         val fullTrace = {
+           val sw = new java.io.StringWriter()
+           val pw = new java.io.PrintWriter(sw)
+           e.printStackTrace(pw) // prints full cause chain
+           pw.flush()
+           sw.toString
+         }
          BenchmarkResult(
            name = name,
            mode = executionMode.toString,
-           failure = Failure(e.getClass.getName, e.getMessage))
+           failure = Failure(e.getClass.getName, e.getMessage + ":\n" + fullTrace))
     }
   }
 
