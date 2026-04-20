@@ -78,14 +78,21 @@ trait Benchmarkable {
           result = doBenchmark(includeBreakdown, description, messages)
         } catch {
           case e: Throwable =>
-            logger.info(s"$that: failure in runBenchmark: $e")
-            println(s"$that: failure in runBenchmark: $e")
+            val fullTrace = {
+              val sw = new java.io.StringWriter()
+              val pw = new java.io.PrintWriter(sw)
+              e.printStackTrace(pw) // prints full cause chain
+              pw.flush()
+              sw.toString
+            }
+            logger.info(s"$that: failure in runBenchmark: $fullTrace")
+            println(s"$that: failure in runBenchmark: $fullTrace")
             result = BenchmarkResult(
               name = name,
               mode = executionMode.toString,
               parameters = Map.empty,
               failure = Some(Failure(e.getClass.getSimpleName,
-                e.getMessage + ":\n" + e.getStackTraceString)))
+                e.getMessage + ":\n" + fullTrace)))
         }
       }
     }

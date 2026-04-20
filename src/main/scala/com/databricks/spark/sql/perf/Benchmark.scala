@@ -398,6 +398,7 @@ object Benchmark {
 
             singleResultT match {
               case Success(singleResult) =>
+                logMessage(s"[BRANCH:SUCCESS] Processing '${q.name}'")
                 singleResult.failure.foreach { f =>
                   failures += 1
                   logMessage(s"Execution '${q.name}' failed: ${f.message}")
@@ -409,7 +410,11 @@ object Benchmark {
                 singleResult :: Nil
               case SFailure(e) =>
                 failures += 1
+                val sw = new java.io.StringWriter()
+                e.printStackTrace(new java.io.PrintWriter(sw))
+                logMessage(s"Execution '${q.name}' failed: ${sw.toString}")
                 logMessage(s"Execution '${q.name}' failed: ${e}")
+                logMessage(s"e.printStackTrace()")
                 Nil
             }
           }
