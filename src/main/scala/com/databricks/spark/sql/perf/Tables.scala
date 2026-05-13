@@ -280,11 +280,11 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
     def analyzeTable(databaseName: String, format: String = "parquet", analyzeColumns: Boolean = false): Unit = {
       println(s"Analyzing table $name.")
       log.info(s"Analyzing table $name.")
-      sqlContext.sql(s"ANALYZE TABLE $databaseName.$name COMPUTE STATISTICS")
       // COMPUTE STATISTICS FOR COLUMNS is not supported on Iceberg tables.
       // Iceberg exposes column-level stats via its own metadata (not Hive ANALYZE).
       if (analyzeColumns && format != "iceberg") {
         val allColumns = fields.map(_.name).mkString(", ")
+        sqlContext.sql(s"ANALYZE TABLE $databaseName.$name COMPUTE STATISTICS")
         println(s"Analyzing table $name columns $allColumns.")
         log.info(s"Analyzing table $name columns $allColumns.")
         sqlContext.sql(s"ANALYZE TABLE $databaseName.$name COMPUTE STATISTICS FOR COLUMNS $allColumns")
